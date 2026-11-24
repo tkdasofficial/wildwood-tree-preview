@@ -29,4 +29,4 @@ use the editor.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
 
-- Tree visuals live in src/game/Tree.tsx; textures, materials and geometries come from the module-cached getTreeAssets() so every tree instance shares GPU resources (mobile memory budget).
+- The oak tree is a framework-free Three.js module in ./tree (entry tree/index.ts, createOakTree); shared assets come from getOakAssets() so all trees reuse GPU resources. Preview/scene code stays in src/game. Why: the folder is copied as-is into the main game.
