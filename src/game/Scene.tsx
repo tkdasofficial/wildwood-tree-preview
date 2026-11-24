@@ -30,11 +30,11 @@ export default function Scene() {
   return (
     <div className="relative h-screen w-full bg-sky" data-scene-ready>
       <Canvas shadows dpr={[1, 2]} camera={{ position: [9, 5, 9], fov: 40 }}>
-        <color attach="background" args={["#bfe3f2"]} />
-        <fog attach="fog" args={["#bfe3f2", 25, 60]} />
-        <hemisphereLight args={["#e6f6ff", "#5a7a3a", 0.6]} />
-        <directionalLight position={[8, 14, 6]} intensity={2.4} color="#fff3dc" castShadow
-          shadow-mapSize={[1024, 1024]} shadow-camera-left={-8} shadow-camera-right={8}
+        <color attach="background" args={["#cfe6ee"]} />
+        <fog attach="fog" args={["#cfe6ee", 14, 48]} />
+        <hemisphereLight args={["#e6f6ff", "#4f6e32", 0.75]} />
+        <directionalLight position={[8, 14, 6]} intensity={2.8} color="#fff0d2" castShadow
+          shadow-mapSize={[1024, 1024]} shadow-radius={4} shadow-camera-left={-8} shadow-camera-right={8}
           shadow-camera-top={10} shadow-camera-bottom={-4} shadow-bias={-0.0005} shadow-normalBias={0.03} />
         <Environment resolution={64}>
           <Lightformer intensity={1.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[10, 10, 1]} />
@@ -42,8 +42,8 @@ export default function Scene() {
         </Environment>
         <Tree sway={sway} />
         <Ground />
-        <ContactShadows position={[0, 0.01, 0]} opacity={0.5} scale={8} blur={2.5} far={3} resolution={256} frames={1} />
-        <OrbitControls target={[0, 3, 0]} minDistance={3} maxDistance={25} maxPolarAngle={Math.PI / 2.05} enableDamping />
+        <ContactShadows position={[0, 0.01, 0]} opacity={0.6} scale={7} blur={2.2} far={3} resolution={256} frames={1} />
+        <OrbitControls target={[0, 3.2, 0]} minDistance={3} maxDistance={25} maxPolarAngle={Math.PI / 2.05} enableDamping />
       </Canvas>
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">
         <div className="rounded-xl bg-card/80 px-4 py-2 backdrop-blur">
