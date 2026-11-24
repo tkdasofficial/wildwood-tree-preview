@@ -58,7 +58,7 @@ function trunkGeometry() {
     pts.push(new THREE.Vector2(0.62 - y * 0.075 + flare, y));
   }
   const geo = new THREE.LatheGeometry(pts, 20);
-  const p = geo.attributes.position as THREE.BufferAttribute;
+  const p = geo.attributes["position"]! as THREE.BufferAttribute;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     const a = Math.atan2(z, x);
@@ -130,7 +130,7 @@ function buildTree() {
 }
 
 function taperTube(g: THREE.TubeGeometry, r0: number, r1: number, seg: number, rad: number) {
-  const p = g.attributes.position as THREE.BufferAttribute;
+  const p = g.attributes["position"]! as THREE.BufferAttribute;
   const path = g.parameters.path;
   for (let i = 0; i <= seg; i++) {
     const t = i / seg, c = path.getPoint(t), k = THREE.MathUtils.lerp(r0, r1, t) / r0;
@@ -161,11 +161,11 @@ export function Tree({ sway }: { sway: boolean }) {
     let off = 0;
     for (const b of data.branches) {
       const ni = b.index!.array;
-      pos.push(...(b.attributes.position.array as Float32Array));
-      nor.push(...(b.attributes.normal.array as Float32Array));
-      uv.push(...(b.attributes.uv.array as Float32Array));
+      pos.push(...(b.attributes["position"]!.array as Float32Array));
+      nor.push(...(b.attributes["normal"]!.array as Float32Array));
+      uv.push(...(b.attributes["uv"]!.array as Float32Array));
       for (let i = 0; i < ni.length; i++) idx.push(ni[i]! + off);
-      off += b.attributes.position.count;
+      off += b.attributes["position"]!.count;
     }
     merged.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     merged.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
@@ -182,19 +182,19 @@ export function Tree({ sway }: { sway: boolean }) {
 
   const setup = () => {
     const lm = leafRef.current, bm = blobRef.current, rm = rootRef.current;
-    if (lm && !lm.userData.done) {
+    if (lm && !lm.userData["done"]) {
       data.leaves.forEach((l, i) => { lm.setMatrixAt(i, l.m); lm.setColorAt(i, l.c); });
-      lm.instanceMatrix.needsUpdate = true; lm.instanceColor!.needsUpdate = true; lm.userData.done = true;
+      lm.instanceMatrix.needsUpdate = true; lm.instanceColor!.needsUpdate = true; lm.userData["done"] = true;
     }
-    if (bm && !bm.userData.done) {
+    if (bm && !bm.userData["done"]) {
       const m = new THREE.Matrix4();
       data.clusters.forEach((c, i) => { m.makeScale(c.r * 0.82, c.r * 0.7, c.r * 0.82).setPosition(c.pos); bm.setMatrixAt(i, m); });
-      bm.instanceMatrix.needsUpdate = true; bm.userData.done = true;
+      bm.instanceMatrix.needsUpdate = true; bm.userData["done"] = true;
     }
-    if (rm && !rm.userData.done) {
+    if (rm && !rm.userData["done"]) {
       const m = new THREE.Matrix4();
       for (let i = 0; i < 7; i++) { m.makeRotationY((i / 7) * Math.PI * 2 + 0.3); rm.setMatrixAt(i, m); }
-      rm.instanceMatrix.needsUpdate = true; rm.userData.done = true;
+      rm.instanceMatrix.needsUpdate = true; rm.userData["done"] = true;
     }
   };
 
@@ -206,8 +206,8 @@ export function Tree({ sway }: { sway: boolean }) {
     if (g) {
       const t = time.current;
       const target = sway ? 1 : 0;
-      g.userData.amp = THREE.MathUtils.damp(g.userData.amp ?? 0, target, 2, d);
-      const a = g.userData.amp as number;
+      g.userData["amp"] = THREE.MathUtils.damp(g.userData["amp"] ?? 0, target, 2, d);
+      const a = g.userData["amp"] as number;
       g.rotation.z = a * (Math.sin(t * 1.1) * 0.018 + Math.sin(t * 2.7) * 0.006);
       g.rotation.x = a * Math.sin(t * 0.8 + 1) * 0.012;
     }
