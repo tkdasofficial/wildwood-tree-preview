@@ -28,3 +28,5 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Tree visuals live in src/game/Tree.tsx; textures, materials and geometries come from the module-cached getTreeAssets() so every tree instance shares GPU resources (mobile memory budget).

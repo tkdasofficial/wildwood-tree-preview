@@ -33,10 +33,29 @@ function barkTexture() {
     g.fillStyle = "rgba(30,18,10,0.6)";
     g.beginPath(); g.ellipse(x, y, 5 + r() * 4, 9 + r() * 6, 0, 0, Math.PI * 2); g.fill();
   }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2);
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  return t;
+  // Fine speckle for surface roughness variation
+  for (let i = 0; i < 2500; i++) {
+    g.fillStyle = r() > 0.5 ? "rgba(20,12,6,0.25)" : "rgba(190,150,110,0.15)";
+    g.fillRect(r() * 256, r() * 512, 1 + r() * 2, 1 + r() * 3);
+  }
+  const wrap = (t: THREE.Texture) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.anisotropy = 4; return t; };
+  const map = wrap(new THREE.CanvasTexture(c)); map.colorSpace = THREE.SRGBColorSpace;
+  // Normal map from bark luminance (Sobel) -> real ridge relief, no external files
+  const src = g.getImageData(0, 0, 256, 512).data;
+  const H = (x: number, y: number) => { const i = (((y + 512) % 512) * 256 + ((x + 256) % 256)) * 4; return (src[i]! + src[i + 1]! + src[i + 2]!) / 765; };
+  const n = document.createElement("canvas"); n.width = 256; n.height = 512;
+  const ng = n.getContext("2d")!, nd = ng.createImageData(256, 512);
+  const rc = document.createElement("canvas"); rc.width = 256; rc.height = 512;
+  const rg = rc.getContext("2d")!, rd = rg.createImageData(256, 512);
+  for (let y = 0; y < 512; y++) for (let x = 0; x < 256; x++) {
+    const dx = (H(x + 1, y) - H(x - 1, y)) * 3.5, dy = (H(x, y + 1) - H(x, y - 1)) * 3.5;
+    const l = Math.hypot(dx, dy, 1), i = (y * 256 + x) * 4;
+    nd.data[i] = (-dx / l * 0.5 + 0.5) * 255; nd.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; nd.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; nd.data[i + 3] = 255;
+    const rv = 200 + (1 - H(x, y)) * 55; // furrows rougher, ridges a touch smoother
+    rd.data[i] = rd.data[i + 1] = rd.data[i + 2] = rv; rd.data[i + 3] = 255;
+  }
+  ng.putImageData(nd, 0, 0); rg.putImageData(rd, 0, 0);
+  return { map, normal: wrap(new THREE.CanvasTexture(n)), rough: wrap(new THREE.CanvasTexture(rc)) };
 }
 
 function leafTexture() {
@@ -77,6 +96,7 @@ function trunkGeometry() {
   }
   const geo = new THREE.LatheGeometry(pts, 36);
   const p = geo.attributes["position"]!;
+  const cols: number[] = [];
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     const a = Math.atan2(z, x);
@@ -85,7 +105,10 @@ function trunkGeometry() {
     const lobe = Math.pow(0.5 + 0.5 * Math.cos(ROOTS * (a + y * 0.15)), 3);
     const k = 1 + 0.3 * lobe * low - 0.06 * low + 0.025 * Math.sin(a * 13 + y * 2.5) + 0.03 * Math.sin(y * 1.7 + a * 2);
     p.setXYZ(i, x * k, y, z * k);
+    const ao = THREE.MathUtils.clamp(0.55 + 0.45 * Math.min(1, y / 0.9) + 0.25 * lobe * low, 0.5, 1);
+    cols.push(ao * 0.95, ao * 0.97, ao);
   }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
   geo.computeVertexNormals();
   return geo;
 }
@@ -178,25 +201,28 @@ function buildTree() {
   const q = new THREE.Quaternion(), tw = new THREE.Quaternion(), s = new THREE.Vector3();
   const Z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0), SUN = new THREE.Vector3(0.5, 0.85, 0.35).normalize();
   for (const cl of clusters) {
+    const clusterHue = (r() - 0.5) * 0.04, clusterLum = (r() - 0.5) * 0.08;
     const count = Math.round(cl.r * cl.r * 30);
     for (let i = 0; i < count; i++) {
       const n = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize();
       n.y = n.y * 0.8 + 0.12; n.normalize();
-      const p = cl.pos.clone().addScaledVector(n, cl.r * (0.45 + r() * 0.5));
+      const depth = r();
+      const p = cl.pos.clone().addScaledVector(n, cl.r * (0.35 + depth * 0.65));
+      if (depth > 0.85 && r() > 0.5) continue; // thin the outer shell for a ragged edge
       // Face mostly outward, tilted upward, with random roll and droop
       const outward = n.clone().lerp(UP, 0.3 + r() * 0.2).normalize();
       q.setFromUnitVectors(Z, outward);
       q.multiply(tw.setFromAxisAngle(Z, r() * Math.PI * 2));
-      q.multiply(tw.setFromAxisAngle(new THREE.Vector3(1, 0, 0), (r() - 0.5) * 0.9));
-      const sz = (0.9 + r() * 0.6) * (0.8 + cl.r * 0.25);
+      q.multiply(tw.setFromAxisAngle(new THREE.Vector3(1, 0, 0), (r() - 0.5) * 1.3));
+      const sz = (0.7 + Math.pow(r(), 1.6) * 0.9) * (0.8 + cl.r * 0.25) * (1.05 - depth * 0.2);
       s.set(sz, sz, sz);
       // Light term: sun-facing, height in crown, and outer-shell exposure
       const facing = n.dot(SUN) * 0.5 + 0.5;
       const h = THREE.MathUtils.clamp((p.y - 3.2) / 3.6, 0, 1);
-      const L = THREE.MathUtils.clamp(facing * 0.6 + h * 0.5 - 0.05, 0, 1);
+      const L = THREE.MathUtils.clamp(facing * 0.55 + h * 0.45 + depth * 0.15 - 0.12, 0, 1); // inner = darker
       const col = L < 0.45 ? shade.clone().lerp(mid, L / 0.45) : mid.clone().lerp(sun, (L - 0.45) / 0.55);
       if (L > 0.8 && r() > 0.5) col.lerp(warm, 0.35);
-      col.offsetHSL((r() - 0.5) * 0.035, (r() - 0.5) * 0.05, (r() - 0.5) * 0.05);
+      col.offsetHSL(clusterHue + (r() - 0.5) * 0.03, (r() - 0.5) * 0.06, clusterLum + (r() - 0.5) * 0.06);
       leaves.push({ m: new THREE.Matrix4().compose(p, q, s), c: col });
     }
   }
@@ -216,16 +242,39 @@ function lumpyBlob() {
   return g;
 }
 
+// Shared across every tree instance: one set of textures/materials/geometries per app
+let shared: ReturnType<typeof makeShared> | null = null;
+function makeShared() {
+  const bark = barkTexture();
+  return {
+    trunk: trunkGeometry(),
+    barkMat: new THREE.MeshStandardMaterial({ map: bark.map, normalMap: bark.normal, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: bark.rough, roughness: 1, color: "#d8b898" }),
+    trunkMat: new THREE.MeshStandardMaterial({ map: bark.map, normalMap: bark.normal, normalScale: new THREE.Vector2(1.4, 1.4), roughnessMap: bark.rough, roughness: 1, color: "#d8b898", vertexColors: true }),
+    leafMat: new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.7 }),
+    innerMat: new THREE.MeshStandardMaterial({ color: "#2a5a24", roughness: 1 }),
+    leafGeo: new THREE.PlaneGeometry(1, 1),
+    blobGeo: lumpyBlob(),
+    soilGeo: new THREE.CircleGeometry(2.4, 32).rotateX(-Math.PI / 2),
+    soilMat: new THREE.MeshBasicMaterial({ map: soilTexture(), transparent: true, depthWrite: false }),
+  };
+}
+export const getTreeAssets = () => (shared ??= makeShared());
+
+function soilTexture() {
+  // Dark soil/contact patch that seats the root flare into the grass
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const grd = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+  grd.addColorStop(0, "rgba(45,32,20,0.85)"); grd.addColorStop(0.45, "rgba(60,48,28,0.5)"); grd.addColorStop(1, "rgba(60,60,30,0)");
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+  const r = rng(5);
+  for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(30,20,10,${r() * 0.35})`; const a = r() * 6.28, d = r() * 50; g.fillRect(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, 2, 2); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 export function Tree({ sway }: { sway: boolean }) {
   const data = useMemo(buildTree, []);
-  const trunk = useMemo(trunkGeometry, []);
-  const bark = useMemo(barkTexture, []);
-  const leafTex = useMemo(leafTexture, []);
-  const barkMat = useMemo(() => new THREE.MeshStandardMaterial({ map: bark, roughness: 0.92, color: "#d8b898" }), [bark]);
-  const leafMat = useMemo(() => new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.7 }), [leafTex]);
-  const innerMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#2a5a24", roughness: 1 }), []);
-  const leafGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
-  const blobGeo = useMemo(lumpyBlob, []);
+  const { trunk, barkMat, trunkMat, leafMat, innerMat, leafGeo, blobGeo, soilGeo, soilMat } = getTreeAssets();
 
   const leafRef = useRef<THREE.InstancedMesh>(null);
   const blobRef = useRef<THREE.InstancedMesh>(null);
@@ -257,7 +306,8 @@ export function Tree({ sway }: { sway: boolean }) {
 
   return (
     <group>
-      <mesh geometry={trunk} material={barkMat} castShadow receiveShadow />
+      <mesh geometry={trunk} material={trunkMat} castShadow receiveShadow />
+      <mesh geometry={soilGeo} material={soilMat} position={[0, 0.012, 0]} renderOrder={1} />
       {/* Pivot near trunk top so sway bends the crown, not the base */}
       <group position={[0, 2.6, 0]}>
         <group ref={canopy}>
