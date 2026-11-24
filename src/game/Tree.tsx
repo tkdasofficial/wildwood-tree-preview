@@ -40,26 +40,28 @@ function barkTexture() {
 }
 
 function leafTexture() {
+  // Dense clump of many small leaves (Free Fire-style foliage card)
   const c = document.createElement("canvas");
-  c.width = c.height = 128;
+  c.width = c.height = 256;
   const g = c.getContext("2d")!;
-  // Compact sprig of 5 leaves; tight shape keeps alpha overdraw low
-  const leaf = (a: number, s: number, tone: number) => {
-    g.save(); g.translate(64, 118); g.rotate(a); g.scale(s, s);
-    const grd = g.createLinearGradient(-20, 0, 20, -95);
-    grd.addColorStop(0, `rgb(${170 * tone},${170 * tone},${170 * tone})`);
-    grd.addColorStop(1, "#ffffff");
-    g.fillStyle = grd;
+  const r = rng(99);
+  for (let i = 0; i < 420; i++) {
+    const ang = r() * Math.PI * 2, d = Math.pow(r(), 0.6) * 112;
+    const x = 128 + Math.cos(ang) * d, y = 128 + Math.sin(ang) * d * 0.9;
+    const edge = d / 112;
+    const top = 1 - y / 256;
+    const v = Math.round(110 + 145 * Math.min(1, top * 0.7 + (1 - edge) * 0.25 + r() * 0.3));
+    g.save(); g.translate(x, y); g.rotate(ang + (r() - 0.5) * 1.2 + Math.PI / 2);
+    const sz = 7 + r() * 7;
+    g.fillStyle = `rgb(${v},${v},${v})`;
     g.beginPath(); g.moveTo(0, 0);
-    g.bezierCurveTo(28, -22, 26, -68, 0, -100);
-    g.bezierCurveTo(-26, -68, -28, -22, 0, 0); g.fill();
-    g.strokeStyle = "rgba(0,0,0,0.22)"; g.lineWidth = 2.2;
-    g.beginPath(); g.moveTo(0, -4); g.quadraticCurveTo(3, -50, 0, -90); g.stroke();
+    g.quadraticCurveTo(sz * 0.55, -sz * 0.5, 0, -sz * 1.6);
+    g.quadraticCurveTo(-sz * 0.55, -sz * 0.5, 0, 0); g.fill();
     g.restore();
-  };
-  leaf(-1.0, 0.55, 0.8); leaf(1.0, 0.55, 0.8); leaf(-0.5, 0.78, 0.9); leaf(0.5, 0.78, 0.9); leaf(0, 1, 1);
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
   return t;
 }
 
@@ -145,10 +147,11 @@ function buildTree() {
 
   // Crown: clusters scattered in an irregular, layered ellipsoid; each fed by a branch
   const layers = [
-    { y: 3.6, n: 5, rad: 2.1, size: [0.85, 1.1] },
-    { y: 4.6, n: 6, rad: 1.9, size: [0.9, 1.2] },
-    { y: 5.6, n: 4, rad: 1.3, size: [0.85, 1.05] },
-    { y: 6.4, n: 2, rad: 0.5, size: [0.75, 0.95] },
+    { y: 3.4, n: 5, rad: 2.3, size: [0.8, 1.05] },
+    { y: 4.2, n: 7, rad: 2.4, size: [0.9, 1.15] },
+    { y: 5.0, n: 7, rad: 2.0, size: [0.9, 1.2] },
+    { y: 5.8, n: 5, rad: 1.4, size: [0.85, 1.1] },
+    { y: 6.6, n: 3, rad: 0.7, size: [0.8, 1.0] },
   ];
   let k = 0;
   for (const L of layers) {
@@ -170,22 +173,22 @@ function buildTree() {
 
   // Leaf cards: fewer, larger, varied sprigs on each cluster's outer shell
   const leaves: { m: THREE.Matrix4; c: THREE.Color }[] = [];
-  const shade = new THREE.Color("#2c5e27"), mid = new THREE.Color("#4c9134"), sun = new THREE.Color("#b6dc62");
+  const shade = new THREE.Color("#2a5524"), mid = new THREE.Color("#4f8a33"), sun = new THREE.Color("#a9cf5c");
   const warm = new THREE.Color("#d8e37a");
   const q = new THREE.Quaternion(), tw = new THREE.Quaternion(), s = new THREE.Vector3();
   const Z = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0), SUN = new THREE.Vector3(0.5, 0.85, 0.35).normalize();
   for (const cl of clusters) {
-    const count = Math.round(cl.r * cl.r * 42);
+    const count = Math.round(cl.r * cl.r * 30);
     for (let i = 0; i < count; i++) {
       const n = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize();
       n.y = n.y * 0.8 + 0.12; n.normalize();
-      const p = cl.pos.clone().addScaledVector(n, cl.r * (0.62 + r() * 0.4));
+      const p = cl.pos.clone().addScaledVector(n, cl.r * (0.45 + r() * 0.5));
       // Face mostly outward, tilted upward, with random roll and droop
       const outward = n.clone().lerp(UP, 0.3 + r() * 0.2).normalize();
       q.setFromUnitVectors(Z, outward);
       q.multiply(tw.setFromAxisAngle(Z, r() * Math.PI * 2));
       q.multiply(tw.setFromAxisAngle(new THREE.Vector3(1, 0, 0), (r() - 0.5) * 0.9));
-      const sz = (0.45 + r() * 0.5) * (0.85 + cl.r * 0.2);
+      const sz = (0.9 + r() * 0.6) * (0.8 + cl.r * 0.25);
       s.set(sz, sz, sz);
       // Light term: sun-facing, height in crown, and outer-shell exposure
       const facing = n.dot(SUN) * 0.5 + 0.5;
@@ -219,9 +222,9 @@ export function Tree({ sway }: { sway: boolean }) {
   const bark = useMemo(barkTexture, []);
   const leafTex = useMemo(leafTexture, []);
   const barkMat = useMemo(() => new THREE.MeshStandardMaterial({ map: bark, roughness: 0.92, color: "#d8b898" }), [bark]);
-  const leafMat = useMemo(() => new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7 }), [leafTex]);
+  const leafMat = useMemo(() => new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.7 }), [leafTex]);
   const innerMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#2a5a24", roughness: 1 }), []);
-  const leafGeo = useMemo(() => new THREE.PlaneGeometry(1, 1).translate(0, 0.25, 0), []);
+  const leafGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
   const blobGeo = useMemo(lumpyBlob, []);
 
   const leafRef = useRef<THREE.InstancedMesh>(null);
@@ -237,7 +240,7 @@ export function Tree({ sway }: { sway: boolean }) {
       data.leaves.forEach((l, i) => { lm.setMatrixAt(i, l.m); lm.setColorAt(i, l.c); });
       lm.instanceMatrix.needsUpdate = true; lm.instanceColor!.needsUpdate = true;
       const m = new THREE.Matrix4();
-      data.clusters.forEach((c, i) => { m.makeScale(c.r * 0.68, c.r * 0.6, c.r * 0.68).setPosition(c.pos); bm.setMatrixAt(i, m); });
+      data.clusters.forEach((c, i) => { m.makeScale(c.r * 0.5, c.r * 0.45, c.r * 0.5).setPosition(c.pos); bm.setMatrixAt(i, m); });
       bm.instanceMatrix.needsUpdate = true;
       ready.current = true;
     }
